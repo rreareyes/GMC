@@ -1,0 +1,263 @@
+---
+title: "GMC model classification summary"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+```{r, setup, include=F, message=F, warning=F}
+library(tidyverse)
+library(colorspace)
+library(janitor)
+library(scales)
+library(papaja)
+library(kableExtra)
+library(mctest)
+library(cowplot)
+
+```
+
+```{r base-directories, echo=F, message=F, warning=F}
+folder_root    <- dirname(dirname(rstudioapi::getActiveDocumentContext()$path))
+folder_results <- file.path(folder_root, "Results", "Datasets")
+folder_keys    <- file.path(folder_root, "Data", "Keys")
+folder_fits    <- file.path(folder_root, "Results", "Fits")
+folder_model   <- file.path(folder_root, "Results", "Keys")
+
+raw_data <- read.csv(file = file.path(folder_model, "model_classification.csv"))
+raw_data_ratio <- read.csv(file = file.path(folder_model, "model_classification_ratio.csv"))
+
+raw_log <- read.csv(file = file.path(folder_keys, "gmc-log.csv"))
+
+raw_betas <- read.csv(file = file.path(folder_results, "beta_weights.csv"), na.strings = "NaN")
+
+raw_betas_ratio <- read.csv(file = file.path(folder_results, "beta_weights_ratio.csv"), na.strings = "NaN")
+
+raw_exceedance <- read.csv(file = file.path(folder_results, "exceedance_probability.csv"), na.strings = "NaN")
+
+raw_exceedance_ratio <- read.csv(file = file.path(folder_results, "exceedance_probability_ratio.csv"), na.strings = "NaN")
+
+```
+
+```{r recode-data, echo=F, message=F, warning=F}
+model_names <- c(
+  "Pr + Rw",
+  "Pr",
+  "Rw",
+  "EV",
+  "PrRatio + RwRatio",
+  "PrRatio",
+  "RwRatio",
+  "PrTr + RwTr",
+  "PrTr",
+  "RwTr",
+  "PrLv + RwLv",
+  "PrLv",
+  "RwLv",
+  "PrLvTr + RwLvTr",
+  "PrLvTr",
+  "RwLvTr",
+  "PrTl + RwTl",
+  "PrTl",
+  "RwTl",
+  "TallySum",
+  "PrTTB A", "PrTTB B", "PrTTB C",
+  "PrTTBlv A", "PrTTBlv B","PrTTBlv C",
+  "PrTTBtl A", "PrTTBtl B", "PrTTBtl C",
+  "RwTTB A", "RwTTB B", "RwTTB C",
+  "RwTTBlv A", "RwTTBlv B", "RwTTBlv C",
+  "RwTTBtl A", "RwTTBtl B", "RwTTBtl C")
+
+model_names_ratio <- c(
+  "Pr + Rw",
+  "Pr",
+  "Rw",
+  "EV",
+  "PrRatio + RwRatio",
+  "PrRatio",
+  "RwRatio",
+  "PrTr + RwTr",
+  "PrTr",
+  "RwTr",
+  "PrLv + RwLv",
+  "PrLv",
+  "RwLv",
+  "PrLvTr + RwLvTr",
+  "PrLvTr",
+  "RwLvTr",
+  "PrTl + RwTl",
+  "PrTl",
+  "RwTl",
+  "TallySum",
+  "PrTTB A", "PrTTB B", "PrTTB C", "PrTTB D", "PrTTB E",
+  "PrTTBlv A", "PrTTBlv B", "PrTTBlv C", "PrTTBlv D", "PrTTBlv E",
+  "PrTTBtl A", "PrTTBtl B", "PrTTBtl C", "PrTTBtl D", "PrTTBtl E",
+  "RwTTB A", "RwTTB B", "RwTTB C", "RwTTB D", "RwTTB E",
+  "RwTTBlv A", "RwTTBlv B", "RwTTBlv C", "RwTTBlv D", "RwTTBlv E",
+  "RwTTBtl A", "RwTTBtl B", "RwTTBtl C", "RwTTBtl D", "RwTTBtl E",
+  "PrRatioLvl + RwRatioLvl",
+  "PrRatioLvl",
+  "RwRatioLvl")
+                 
+model_labels <- paste(sort(as.numeric(factor(model_names))), model_names)
+model_labels_ratio <- paste(sort(as.numeric(factor(model_names_ratio))), model_names_ratio)
+
+model_data <- raw_data %>% 
+  mutate(model_names = factor(model, levels = 1:38, labels = model_labels)) %>% 
+  full_join(raw_log) %>%
+  mutate(stage = as.numeric(stage) + 1) %>% 
+  mutate(stage = as.factor(stage)) %>% 
+  select(id, stage, rw_top, model, model_names) %>% 
+  na.omit()
+
+model_data_ratio <- raw_data_ratio %>% 
+  mutate(model_names = factor(model, levels = 1:53, labels = model_labels_ratio)) %>% 
+  full_join(raw_log) %>%
+  mutate(stage = as.numeric(stage) + 1) %>% 
+  mutate(stage = as.factor(stage)) %>% 
+  select(id, stage, rw_top, model, model_names) %>% 
+  na.omit()
+
+model_data_merged <- full_join(model_data, model_data_ratio)
+
+
+model_exceedance <- raw_exceedance %>% 
+  pivot_longer(everything(), names_to = "model", values_to = "exceedance") %>% 
+  mutate(model_names = factor(model, levels = 1:38, labels = model_labels))
+
+
+model_table <- model_data_merged %>% 
+  group_by(stage, model, model_names) %>%
+  summarise(Participants = n()) %>% 
+  rename("Stage" = stage, "Model" = model, "Model Name" = model_names) %>% 
+  ungroup()
+  
+reference_betas <- full_join(raw_betas, raw_betas_ratio) %>% 
+  filter(model == 5) %>% 
+  full_join(raw_log) %>%
+  na.omit() %>% 
+  mutate(stage = stage +1,
+         Probability = round(x1, 4),
+         Reward = round(x2, 4)) %>% 
+  select(id, stage, Probability, Reward) %>% 
+  pivot_longer(cols = c(Probability, Reward), names_to = "Predictor", values_to = "Beta") %>% 
+  mutate(Probs = exp(Beta)/(1 + exp(Beta)),
+         "Percent Change" = Probs - 0.5)
+
+```
+
+# Statistical models 
+```{r descriptives, echo=F, message=F, warning=F}
+select(raw_log, id, stage) %>% 
+  unique() %>% 
+  arrange(stage) %>% 
+  mutate(stage = as.numeric(stage) + 1) %>% 
+  mutate(stage = as.factor(stage)) %>% 
+  group_by(stage) %>% 
+  summarise(n = n()) %>% 
+  apa_table(caption = "Number of participants per group", placement = "H", align = c("m{2.2cm}", "m{0.3cm}"))
+
+```
+
+```{r model_summaries, echo=F, message=F, warning=F}
+apa_table(filter(model_table, Stage == 1), placement = "H", 
+          caption = "Stage 1. Loose hashtags, probability shown as a decimal")
+
+apa_table(filter(model_table, Stage == 2), placement = "H",
+          caption = "Stage 2. Tight black hashtags, probability shown as a decimal")
+
+apa_table(filter(model_table, Stage == 3), placement = "H",
+          caption = "Stage 3. Dark two-colored hashtags, probability shown as an integer")
+
+apa_table(filter(model_table, Stage == 4), placement = "H",
+          caption = "Stage 4. Brighter two-colored hashtag, probability shown as an integer")
+
+apa_table(filter(model_table, Stage == 5), placement = "H",
+          caption = "Stage 5. Tight black hashtags, reward shown as a decimal")
+
+apa_table(filter(model_table, Stage == 6), placement = "H",
+          caption = "Stage 6. Ratio conditions. Brighter two-colored hashtag, probability shown as an integer.")
+
+
+```
+
+```{r model-key, echo=F, message=F, warning=F}
+model_key <- model_table %>% 
+  distinct(`Model Name`) %>% 
+  mutate(Description = c("Relative difference in prob and rw",
+                         "Relative difference in prob",
+                         "Tally prob",
+                         "Levels pr and rw",
+                         "Tally pr and rw",
+                         "Tally sum pr and rw",
+                         "TTB priority pr difference >14",
+                         "Levels pr",
+                         "EV",
+                         "Tally rw",
+                         "Relative difference in reward",
+                         "TTB priority pr difference >14"))
+
+model_key %>% 
+  apa_table(caption   = "Decision models", 
+            placement = "H", 
+            note      = "Difference in prob and rw in original scale used as the reference model")
+
+```
+
+\newpage
+```{r model_counts, echo=F, message=F, warning=F, fig.width=8, fig.height=10}
+ggplot(data = model_data_merged) +
+  
+  ggtitle("Best fitting models") +
+  
+  geom_bar(aes(x    = as.factor(model),
+               fill = model_names),
+           color = "black") +
+  
+  scale_fill_discrete(aesthetics = c("fill"),
+                      name       = "Decision model") +
+  
+  scale_x_discrete(name = NULL, breaks = seq(1,100,1)) +
+  
+  scale_y_continuous(name   = "Number of participants",
+                     breaks = seq(0, 100, 2)) +
+  
+  theme_bw() +
+  
+  background_grid(major = "xy") +
+  
+  facet_wrap(stage ~ ., ncol = 2, scales = "free_x") +
+  
+  theme(panel.grid.major = element_line(size = 0.5, linetype = "dashed")) 
+
+```
+
+\newpage
+```{r betas, echo=F, message=F, warning=F, fig.width=8, fig.height=10}
+ggplot(reference_betas) +
+  
+  ggtitle("Predictor weight in Ratio model") +
+  
+  geom_histogram(aes(x = `Percent Change`,
+                     fill = as.factor(stage)),
+                 color = "black") +
+  
+  scale_x_continuous(name = "Change in probability of choosing the left gamble",
+                     labels = scales::percent) +
+  
+  scale_y_continuous(name   = "Number of participants") +
+  
+  scale_fill_brewer(name = "Stage", 
+                    palette = "Dark2") +
+  
+  theme_bw() +
+  
+  background_grid(major = "xy") +
+  
+  facet_grid(stage~Predictor) +
+  
+  theme(panel.grid.major = element_line(size = 0.5, linetype = "dashed"),
+        axis.text.x      = element_text(angle = 45, vjust = 0.7)) 
+  
+```
+

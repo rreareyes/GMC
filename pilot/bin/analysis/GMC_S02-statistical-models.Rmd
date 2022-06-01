@@ -1,0 +1,377 @@
+---
+title: "GMC pilot analysis"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+```{r, setup, include=F, message=F, warning=F}
+library(tidyverse)
+library(colorspace)
+library(janitor)
+library(scales)
+library(papaja)
+library(kableExtra)
+library(mctest)
+library(cowplot)
+
+```
+
+```{r base-directories, echo=F, message=F, warning=F}
+folder_root    <- dirname(dirname(rstudioapi::getActiveDocumentContext()$path))
+folder_results <- file.path(folder_root, "Results", "Datasets")
+folder_fits    <- file.path(folder_root, "Results", "Fits")
+
+load(file = file.path(folder_results, "response_data.RData"))
+
+```
+
+```{r recode-data, echo=F, message=F, warning=F}
+base_gambles <- gamble_data %>% 
+  select(id, stage, rw_top, block, trial, trial_id, 
+         r_dif, p_dif, 
+         r_left, r_right, p_left, p_right, 
+         choice, rt) %>% 
+  mutate(stage    = factor(stage, 
+                           levels = c(0, 1, 2, 3, 4), 
+                           labels = c("Stage 1", "Stage 2", "Stage 3", 
+                                      "Stage 4", "Stage 5")),
+         ev_left  = p_left * r_left,
+         ev_right = p_right * r_right,
+         ev_dif   = ev_left - ev_right,
+         p_dif    = p_dif * 100,
+         p_left   = p_left * 100,
+         p_right  = p_right * 100,
+         choice   = as.numeric(choice))
+
+difference_data <- base_gambles %>% 
+  select(id, stage, rw_top, r_dif, p_dif, ev_dif, choice, rt) %>% 
+  mutate(r_dif = r_dif/17,
+         p_dif = p_dif/17) 
+
+stages <- unique(base_gambles$stage)
+nStages <- length(stages)
+
+```
+
+# Statistical models 
+```{r descriptives, echo=F, message=F, warning=F}
+select(base_gambles, id, stage) %>% 
+  unique() %>% 
+  arrange(stage) %>% 
+  group_by(stage) %>% 
+  summarise(n = n()) %>% 
+  apa_table(caption = "Number of participants per group", placement = "H", align = c("m{2.2cm}", "m{0.3cm}"))
+
+```
+
+## Difference effects
+### Raw numerical values
+Here we used the numerical difference between the values showed in the left side, vs the right side.
+$$
+\begin{aligned} 
+logit(P_{left}) & = 1 + \beta_1\times\Delta Rw + \beta_2\times\Delta Pr + \beta_3\times\Delta RW : \Delta PR 
+\\ where & : 
+\\ P_{left} & = \text{Probability of choosing the left cue}
+\\ \Delta Rw & = \text{Reward}_{left} - \text{Reward}_{right}
+\\ \Delta Pr & = \text{Probability}_{left} - \text{Probability}_{right}
+\end{aligned}
+$$
+
+```{r diff-numerical, echo=F, message=F, warning=F}
+
+lm_diff_numerical <- list()
+apa_diff_numerical <- list()
+
+for (iStage in 1:nStages) {
+  
+  lm_diff_numerical[[iStage]] <- glm(choice ~ 1 + r_dif * p_dif,
+                                     data   = filter(base_gambles, stage == stages[iStage]),
+                                     family = binomial)
+
+  apa_diff_numerical[[iStage]] <- apa_print(lm_diff_numerical[[iStage]])
+  
+}
+
+apa_table(apa_diff_numerical[[1]]$table, placement = "H",
+          caption = "Stage 1. Loose hashtags, probability shown as a decimal",
+          note    = "Probabilities transformed to percent for easier interpretation of the effects.")
+
+apa_table(apa_diff_numerical[[2]]$table, placement = "H", 
+          caption = "Stage 2. Tight black hashtags, probability shown as a decimal",
+          note    = "Probabilities transformed to percent for easier interpretation of the effects.")
+
+apa_table(apa_diff_numerical[[3]]$table, placement = "H", 
+          caption = "Stage 3. Dark two-colored hashtags, probability shown as an integer",
+          note    = "Probabilities transformed to percent for easier interpretation of the effects.")
+
+apa_table(apa_diff_numerical[[4]]$table, placement = "H", 
+          caption = "Stage 4. Brighter two-colored hashtag, probability shown as an integer",
+          note    = "Probabilities transformed to percent for easier interpretation of the effects.")
+
+apa_table(apa_diff_numerical[[5]]$table, placement = "H", 
+          caption = "Stage 5. Tight black hashtags, reward shown as a decimal",
+          note    = "Probabilities transformed to percent for easier interpretation of the effects.")
+```
+
+\newpage
+### Coded as levels of an ordinal factor
+In this case, since we controlled for the differences in probability and reward between cues, we can recoded the differences as ordinal levels that are evenly spaced. Then, the interpretation of the results is more straightforward for our design:
+$$
+\begin{aligned} 
+logit(P_{left}) & = 1 + \beta_1\times\Delta Rw + \beta_2\times\Delta Pr + \beta_3\times\Delta RW : \Delta PR 
+\\ where & : 
+\\ P_{left} & = \text{Probability of choosing the left cue}
+\\ \Delta Rw & = \text{Reward}_{left} - \text{Reward}_{right}
+\\ \Delta Pr & = \text{Probability}_{left} - \text{Probability}_{right}
+\end{aligned}
+$$
+
+```{r diff-level, echo=F, message=F, warning=F}
+
+lm_diff_levels <- list()
+apa_diff_levels <- list()
+
+for (iStage in 1:nStages) {
+  
+  lm_diff_levels[[iStage]] <- glm(choice ~ 1 + r_dif * p_dif,
+                                  data   = filter(difference_data, stage == stages[iStage]),
+                                  family = binomial)
+
+  apa_diff_levels[[iStage]] <- apa_print(lm_diff_levels[[iStage]])
+  
+}
+
+apa_table(apa_diff_levels[[1]]$table, placement = "H", 
+          caption = "Stage 1. Loose hashtags, probability shown as a decimal",
+          note    = "Differences coded from -4 to 4 in both predictors.")
+
+apa_table(apa_diff_levels[[2]]$table, placement = "H",
+          caption = "Stage 2. Tight black hashtags, probability shown as a decimal",
+          note    = "Differences coded from -4 to 4 in both predictors.")
+
+apa_table(apa_diff_levels[[3]]$table, placement = "H",
+          caption = "Stage 3. Dark two-colored hashtags, probability shown as an integer",
+          note    = "Differences coded from -4 to 4 in both predictors.")
+
+apa_table(apa_diff_levels[[4]]$table, placement = "H",
+          caption = "Stage 4. Brighter two-colored hashtag, probability shown as an intege",
+          note    = "Differences coded from -4 to 4 in both predictors.")
+
+apa_table(apa_diff_levels[[5]]$table, placement = "H",
+          caption = "Stage 2. Tight black hashtags, reward shown as a decimal",
+          note    = "Differences coded from -4 to 4 in both predictors.")
+
+
+```
+
+\newpage
+## Lateralized predictors
+### Numerical predictors from each side
+
+For these models, we used the raw values from each side 
+$$
+\begin{aligned} 
+logit(P_{left}) & = 1 + \beta_1 \times Rw_{left} + \beta_2 \times Rw_{right} + \beta_3 \times Pr_{left} + \beta_4 \times Pr_{right} + \text{all interactions}
+\end{aligned}
+$$
+
+```{r amount-side, echo=F}
+lm_numerical <- list()
+apa_numerical <- list()
+
+for (iStage in 1:nStages) {
+  
+  lm_numerical[[iStage]] <- glm(choice ~ 1 + r_left * r_right * p_left * p_right,
+                                data   = filter(base_gambles, stage == stages[iStage]),
+                                family = binomial)
+
+  apa_numerical[[iStage]] <- apa_print(lm_numerical[[iStage]])
+  
+}
+
+apa_table(apa_numerical[[1]]$table, placement = "H",
+          caption = "Stage 1. Loose hashtags, probability shown as a decimal")
+
+apa_table(apa_numerical[[2]]$table, placement = "H",
+          caption = "Stage 2. Tight black hashtags, probability shown as a decimal")
+
+apa_table(apa_numerical[[3]]$table, placement = "H",
+          caption = "Stage 3. Dark two-colored hashtags, probability shown as an integer")
+
+apa_table(apa_numerical[[4]]$table, placement = "H",
+          caption = "Stage 4. Brighter two-colored hashtag, probability shown as an intege")
+
+apa_table(apa_numerical[[5]]$table, placement = "H",
+          caption = "Stage 5. Tight black hashtags, reward shown as a decimal")
+
+
+```
+
+\newpage
+```{r choice-prob, echo=F, message=F, warning=F, fig.width=8, fig.height=6}
+ggplot(data = base_gambles) +
+  
+  ggtitle("Proportion of left choices by probability support") +
+  
+  stat_smooth(aes(x     = p_dif,
+                  y     = choice,
+                  fill  = stage,
+                  color = stage),
+              alpha       = 0.2,
+              method      = "glm", 
+              se          = T, 
+              method.args = list(family=binomial)) +
+  
+  scale_y_continuous(name   = "Proportion of left choices",
+                     breaks = seq(0, 1, 0.25)) +
+  
+  scale_x_continuous(name   = "Probability support for the left side",
+                     breaks = sort(c(unique(base_gambles$p_dif), 0))) +
+  
+  scale_fill_brewer(aesthetics = c("colour", "fill"),
+                    name       = "Pilot phase",
+                    palette    = "Dark2") +
+  
+  theme_bw() +
+  
+  background_grid(major = "xy") +
+  
+  facet_wrap(. ~ stage) +
+  
+  theme(panel.grid.major = element_line(size = 0.5, linetype = "dashed")) 
+
+```
+\newpage
+```{r choice-rw, echo=F, message=F, warning=F, fig.width=8, fig.height=6}
+ggplot(data = base_gambles) +
+  
+  ggtitle("Proportion of left choices by reward support") +
+  
+  stat_smooth(aes(x     = r_dif,
+                  y     = choice,
+                  fill  = stage,
+                  color = stage),
+              alpha       = 0.2,
+              method      = "glm", 
+              se          = T, 
+              method.args = list(family=binomial)) +
+  
+  scale_y_continuous(name   = "Proportion of left choices",
+                     breaks = seq(0, 1, 0.25)) +
+  
+  scale_x_continuous(name   = "Reward support for the left side",
+                     breaks = sort(c(unique(base_gambles$p_dif), 0))) +
+  
+  scale_fill_manual(aesthetics = c("colour", "fill"),
+                    name       = "Pilot phase",
+                    values     = RColorBrewer::brewer.pal(8, "Dark2")[4:8]) +
+  
+  theme_bw() +
+  
+  background_grid(major = "xy") +
+
+  facet_wrap(. ~ stage) +
+  
+  theme(panel.grid.major = element_line(size = 0.5, linetype = "dashed")) 
+
+```
+
+
+\newpage
+```{r choice-prob-rw, echo=F, message=F, warning=F, fig.width=8, fig.height=6}
+ggplot(data = base_gambles) +
+  
+  ggtitle("Proportion of left choices by probability support") +
+  
+  stat_smooth(aes(x     = p_dif,
+                  y     = as.numeric(choice),
+                  color = as.factor(r_dif),
+                  fill  = as.factor(r_dif)),
+              alpha       = 0.7,
+              method      = "glm", 
+              se          = F, 
+              method.args = list(family=binomial)) +
+  
+  scale_y_continuous(name   = "Proportion of left choices",
+                     breaks = seq(0, 1, 0.25)) +
+  
+  scale_x_continuous(name   = "Probability support for the left side",
+                     breaks = sort(c(unique(base_gambles$p_dif), 0))) +
+  
+  scale_fill_manual(aesthetics = c("colour", "fill"),
+                    name       = "Reward levels",
+                    values     = diverging_hcl(8,
+                                               h = c(250, 10), 
+                                               c = 80, 
+                                               l = c(20, 66), 
+                                               power = c(0.7, 1.7))) +
+  
+  theme_bw() +
+  
+  background_grid(major = "xy") +
+
+  facet_wrap(. ~ stage) +
+  
+  theme(panel.grid.major = element_line(size = 0.5, linetype = "dashed")) 
+
+```
+
+\newpage
+ 
+```{r choice-rw-prob, echo=F, message=F, warning=F, fig.width=8, fig.height=6}
+ggplot(data = base_gambles) +
+  
+  ggtitle("Proportion of left choices by reward support") +
+  
+  stat_smooth(aes(x     = r_dif,
+                  y     = as.numeric(choice),
+                  color = as.factor(p_dif),
+                  fill  = as.factor(p_dif)),
+              alpha       = 0.7,
+              method      = "glm", 
+              se          = F, 
+              method.args = list(family=binomial)) +
+  
+  scale_y_continuous(name   = "Proportion of left choices",
+                     breaks = seq(0, 1, 0.25)) +
+  
+  scale_x_continuous(name   = "Reward support for the left side",
+                     breaks = sort(c(unique(base_gambles$r_dif), 0))) +
+ 
+  scale_fill_manual(aesthetics = c("colour", "fill"),
+                    name       = "Probability levels",
+                    values     = diverging_hcl(8,
+                                               h = c(180, 50), 
+                                               c = 80, 
+                                               l = c(20, 66), 
+                                               power = c(0.7, 1.7))) +
+
+  theme_bw() +
+  
+  background_grid(major = "xy") +
+  
+  facet_wrap(.~stage) +
+  
+  theme(panel.grid.major = element_line(size = 0.5, linetype = "dashed")) 
+
+```
+
+\newpage
+# Diagnostics 
+The results suggest the presence of multicollinearity in the lateralized models
+```{r diagnostics, echo=F, message=F, warning=F}
+lm_lateralized <- glm(choice ~ 1 + r_left * r_right * p_left * p_right,
+                      data   = base_gambles,
+                      family = binomial)
+
+lm_difference <- glm(choice ~ 1 + r_dif * p_dif,
+                     data   = base_gambles,
+                     family = binomial)
+
+omcdiag(lm_lateralized)
+omcdiag(lm_difference)
+
+```
+
+

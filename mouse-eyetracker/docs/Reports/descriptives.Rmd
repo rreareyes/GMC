@@ -1,0 +1,201 @@
+---
+title: "Descriptives"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  pdf_document: default
+  html_notebook: default
+  
+---
+
+```{r setup, include=F, warning=F, message=F}
+library(tidyverse)
+library(papaja)
+library(kableExtra)
+
+path_root    <- dirname(dirname(dirname(rstudioapi::getActiveDocumentContext()$path)))
+path_data    <- file.path(path_root, "data")
+path_mouse   <- file.path(path_data, "mouse")
+path_choice  <- file.path(path_data, "behavior")
+path_results <- file.path(path_root, "results")
+
+files_choice <- list.files(path_choice) 
+files_mouse  <- list.files(path_mouse) 
+
+file_results <- "processed_behavior.RData"
+
+load(file.path(path_results, file_results))
+
+```
+
+```{r participants, echo=F, message=F, warning=F}
+participants_table <- processed_behavior %>% 
+  select(id, "Condition" = color_condition) %>% 
+  unique() %>% 
+  group_by(Condition) %>% 
+  summarise("Participants" = n()) %>% 
+  ungroup()
+
+participants_table %>% 
+  apa_table(caption = "Number of participants per condition", 
+            placement = "H",  
+            align = c("m{2.2cm}", "m{2.2cm}"),
+            note = c("\n
+                     A = Probability Top/Blue\n 
+                     B = Probability Top/Yellow \n
+                     C = Reward Top/Blue\n
+                     D = Reward Top/Yellow\n")) 
+
+```
+
+```{r quality, echo=F, message=F, warning=F}
+quality_table <- processed_behavior %>% 
+  select("Participant" = id, order, response) %>% 
+  distinct() %>% 
+  mutate(Invalid = response == -1) %>% 
+  group_by(Participant) %>% 
+  summarise("N Invalid" = sum(Invalid)) %>% 
+  ungroup()
+
+quality_table %>% 
+  apa_table(caption = "Number of invalid trials per participant", 
+            placement = "H",  
+            align = c("m{2.2cm}", "m{2.2cm}")) 
+
+```
+
+```{r choices, echo=F}
+choice_data <- processed_behavior %>% 
+  select(id, color_condition, block, trial, 
+         r_left:p_bin_label, response, duration) %>% 
+  unique()
+
+```
+
+```{r example-participant, echo=F, message=F, warning=F}
+formatted_behavior <- processed_behavior %>% 
+  filter(response != -1) %>% 
+  mutate(response = factor(response, levels = c("1", "0"), labels = c("Left", "Right")),
+         p_bin_label = factor(p_bin_label),
+         r_bin_label = factor(r_bin_label))
+
+
+id_participants <- unique(formatted_behavior$id)
+
+example_participant <- formatted_behavior %>% 
+  select(id, order, block, trial, bin, ratio_r_lvl, ratio_p_lvl, r_bin_label, p_bin_label, response, x, y) %>% 
+  filter(id == id_participants[18]) %>% 
+  filter(bin > 1) 
+  
+
+```
+
+```{r condition-trajectories, echo=F, message=F, warning=F}
+p_trajectories <- formatted_behavior %>% 
+  select(id, order, bin, ratio_r_lvl, ratio_p_lvl, p_bin_label, response, x, y) %>% 
+  filter(bin > 1) %>% 
+  group_by(id, bin, p_bin_label, response) %>% 
+  summarise(px = mean(x),
+            py = mean(y)) %>% 
+  ungroup()
+
+p_mean <- p_trajectories %>% 
+  group_by(bin, p_bin_label, response) %>% 
+  summarise(mpx = mean(px),
+            mpy = mean(py)) %>% 
+  ungroup()
+
+r_trajectories <- formatted_behavior %>% 
+  select(id, order, bin, ratio_r_lvl, ratio_p_lvl, r_bin_label, response, x, y) %>% 
+  filter(bin > 1) %>% 
+  group_by(id, bin, r_bin_label, response) %>% 
+  summarise(rx = mean(x),
+            ry = mean(y)) %>% 
+  ungroup()
+
+r_mean <- r_trajectories %>% 
+  group_by(bin, r_bin_label, response) %>% 
+  summarise(mrx = mean(rx),
+            mry = mean(ry)) %>% 
+  ungroup()
+  
+  
+  
+```
+
+
+```{r example-plot, echo=F, warning=FALSE, message=FALSE, fig.width=10, fig.height=5}
+ggplot(example_participant) +
+  
+  ggtitle("Mouse trajectories from sample participant") +
+
+  geom_path(aes(x = x,
+                y = y,
+                group = interaction(order)),
+            alpha = 0.2) +
+  
+  theme_bw()
+
+
+```
+
+```{r group-mouse, echo=F, warning=FALSE, message=FALSE, fig.width=10, fig.height=5}
+ggplot(formatted_behavior) +
+
+  ggtitle("Trajectories from all the participants") +
+  
+  geom_path(aes(x = x,
+                y = y,
+                #color = as.factor(response),
+                group = as.factor(order)),
+            alpha = 0.05) +
+
+  facet_wrap(p_bin_label~.) +
+  
+  theme_bw()
+```
+
+```{r p-ratio-means, echo=F, warning=FALSE, message=FALSE, fig.width=8, fig.height=8}
+ggplot(p_trajectories) +
+
+  ggtitle("Mean trajectories per Probability ratio condition") +
+  
+  geom_path(aes(x = px,
+                y = py,
+                group = interaction(id, p_bin_label)),
+            alpha = 0.1) +
+
+  geom_path(data = p_mean,
+            aes(x = mpx,
+                y = mpy,
+                color = p_bin_label),
+            size = 1.5,
+            alpha = 0.7) +
+
+  facet_grid(p_bin_label~response) +
+  
+  
+  theme_bw()
+```
+
+```{r r-ratio-means, echo=F, warning=FALSE, message=FALSE, fig.width=8, fig.height=8}
+ggplot(r_trajectories) +
+
+  ggtitle("Mean trajectories per Reward ratio condition") +
+  
+  geom_path(aes(x = rx,
+                y = ry,
+                group = interaction(id, r_bin_label)),
+            alpha = 0.1) +
+
+  geom_path(data = r_mean,
+            aes(x = mrx,
+                y = mry,
+                color = r_bin_label),
+            size = 1.5,
+            alpha = 0.7) +
+
+  facet_grid(r_bin_label~response) +
+  
+  
+  theme_bw()
+```
