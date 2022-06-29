@@ -1,4 +1,7 @@
 *.idf
+*.pdf
+*.doc
+*.docx
 mouse-eyetracker/data/
 mouse-eyetracker/bin/testing/
 mouse-eyetracker/forms/
@@ -7,6 +10,6 @@ mouse-eyetracker/figures/
 mouse-eyetracker/results/
 mouse-eyetracker/figures/
 pilot/data/
-pilot/docs/
+pilot/
 pilot/instructions/
 pilot/results/

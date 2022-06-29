@@ -12,10 +12,10 @@
 library(tidyverse)
 library(janitor)
 
-folder_root    <- dirname(dirname(rstudioapi::getActiveDocumentContext()$path))
-folder_results <- file.path(folder_root, "Results", "Datasets")
-folder_data    <- file.path(folder_root, "Data", "Responses")
-folder_keys    <- file.path(folder_root, "Data", "Keys")
+folder_root    <- dirname(dirname(dirname(rstudioapi::getActiveDocumentContext()$path)))
+folder_results <- file.path(folder_root, "results", "datasets")
+folder_data    <- file.path(folder_root, "data", "responses", "distance")
+folder_keys    <- file.path(folder_root, "data", "logs")
 
 files_data <- list.files(path = folder_data)
 nFiles     <- length(files_data)
@@ -75,6 +75,8 @@ gamble_data <- bind_rows(raw_subject_data) %>%
   filter(!is.na(condition)) %>% 
   mutate(ev_left    = p_left * r_left,
          ev_right   = p_right * r_right,
+         #subjective value
+         sv_dif = (p_left * log(r_left)) - (p_right * log(r_right)),
          ev_dif     = round(ev_left - ev_right, 2),
          p_dif      = p_dif * 100,
          p_left     = p_left * 100,
@@ -134,7 +136,9 @@ gamble_data <- bind_rows(raw_subject_data) %>%
          r_rttb_tl_B = ifelse(abs(r_dif) > 35, r_dif_tal, 0),
          p_rttb_tl_B = ifelse(abs(r_dif) > 35, 0, p_dif_tal),
          r_rttb_tl_C = ifelse(abs(r_dif) > 52, r_dif_tal, 0),
-         p_rttb_tl_C = ifelse(abs(r_dif) > 52, 0, p_dif_tal))
+         p_rttb_tl_C = ifelse(abs(r_dif) > 52, 0, p_dif_tal)
+         
+         )
 
 # Prepare data for model selection ----------------------------------------
 model_input <- gamble_data %>% 
@@ -143,7 +147,8 @@ model_input <- gamble_data %>%
          p_dif, r_dif, 
          ev_dif, 
          p_rel, r_rel,
-         p_dif_tr:p_rttb_tl_C)
+         p_dif_tr:p_rttb_tl_C,
+         sv_dif)
 
 write_csv(model_input,
           file = file.path(folder_results, "model_data.csv"),

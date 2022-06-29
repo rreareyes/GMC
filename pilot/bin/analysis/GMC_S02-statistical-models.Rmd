@@ -18,11 +18,12 @@ library(cowplot)
 ```
 
 ```{r base-directories, echo=F, message=F, warning=F}
-folder_root    <- dirname(dirname(rstudioapi::getActiveDocumentContext()$path))
+folder_root    <- dirname(dirname(dirname(rstudioapi::getActiveDocumentContext()$path)))
 folder_results <- file.path(folder_root, "Results", "Datasets")
 folder_fits    <- file.path(folder_root, "Results", "Fits")
 
 load(file = file.path(folder_results, "response_data.RData"))
+
 
 ```
 
@@ -39,9 +40,9 @@ base_gambles <- gamble_data %>%
          ev_left  = p_left * r_left,
          ev_right = p_right * r_right,
          ev_dif   = ev_left - ev_right,
-         p_dif    = p_dif * 100,
-         p_left   = p_left * 100,
-         p_right  = p_right * 100,
+         p_dif    = p_dif,
+         p_left   = p_left,
+         p_right  = p_right,
          choice   = as.numeric(choice))
 
 difference_data <- base_gambles %>% 

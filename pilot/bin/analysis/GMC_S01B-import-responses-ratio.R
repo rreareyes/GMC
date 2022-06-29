@@ -12,18 +12,20 @@
 library(tidyverse)
 library(janitor)
 
-folder_root    <- dirname(dirname(rstudioapi::getActiveDocumentContext()$path))
+folder_root    <- dirname(dirname(dirname(rstudioapi::getActiveDocumentContext()$path)))
 folder_results <- file.path(folder_root, "results", "datasets")
 folder_data    <- file.path(folder_root, "data", "responses", "ratio")
 folder_keys    <- file.path(folder_root, "data", "keys")
+folder_logs    <- file.path(folder_root, "data", "logs")
 
 files_data <- list.files(path = folder_data, pattern = )
 nFiles     <- length(files_data)
 
+dir.create(folder_results, showWarnings = T)
 
 # Import conditions key from the log --------------------------------------
 
-raw_log <- read.csv(file.path(folder_keys, "gmc-log.csv"))
+raw_log <- read.csv(file.path(folder_logs, "gmc-log.csv"))
   
 # Import behavioral data --------------------------------------------------
 
@@ -82,8 +84,8 @@ gamble_data <- cohort_data %>%
     # Relabel choices
     choice = as.numeric(choice),
     # Expected value
-    ev_left  = p_left * rw_left,
-    ev_right = p_right * rw_right,
+    ev_left  = p_left/100 * rw_left,
+    ev_right = p_right/100 * rw_right,
     ev_delta = round(ev_left - ev_right, 2),
     ev_ratio = round(ev_left/ev_right, 2),
     # Stimuli levels
@@ -210,7 +212,9 @@ gamble_data <- cohort_data %>%
     p_rt_rttb_lv_C  = ifelse(abs(rw_ratio_level) > 2, 0, p_ratio_level),
     rw_rt_rttb_lv_C = ifelse(abs(rw_ratio_level) > 2, rw_ratio_level, 0),
     p_rt_rttb_lv_D  = ifelse(abs(rw_ratio_level) > 3, 0, p_ratio_level),
-    rw_rt_rttb_lv_D = ifelse(abs(rw_ratio_level) > 3, rw_ratio_level, 0)
+    rw_rt_rttb_lv_D = ifelse(abs(rw_ratio_level) > 3, rw_ratio_level, 0),
+    # Subjective Value
+    sv_dif = (p_left/100 * log(rw_left)) - (p_right/100 * log(rw_right))
     ) #%>% 
   #unite(ratio_cond, p_ratio_level, rw_ratio_level, remove = F) %>% 
   #unite(delta_cond, p_delta_lvl, rw_delta_lvl, remove = F) 
@@ -225,11 +229,14 @@ model_input <- gamble_data %>%
          ev_delta,
          p_ratio, rw_ratio,
          p_delta_lvl:rw_lvl_tr,
-         p_delta_tal:rw_rttb_tl_E,
-         p_ratio_level, rw_ratio_level,
+         p_delta_tal:s_tal,
+         p_pttb_mg_A:rw_pttb_tl_E,
+         p_rttb_mg_A:rw_rttb_tl_E,
+         p_ratio_level:rw_ratio_level,
          ev_ratio, 
          p_rt_pttb_mg_A:rw_rt_pttb_lv_D,
-         p_rt_rttb_mg_A:rw_rt_rttb_lv_D
+         p_rt_rttb_mg_A:rw_rt_rttb_lv_D,
+         sv_dif
          )
 
 write_csv(model_input,

@@ -11,11 +11,10 @@
 clear; clc
 
 %% Base directories
-cd('..')
-folder.Root    = pwd;
-folder.Scripts = fullfile(folder.Root, 'Scripts');
-folder.Results = fullfile(folder.Root, 'Results', 'Datasets'); 
-folder.Keys    = fullfile(folder.Root, 'Results', 'Keys');
+folder.Root    = fileparts(fileparts(cd));
+folder.Scripts = fullfile(folder.Root, 'bin', 'analysis');
+folder.Results = fullfile(folder.Root, 'results', 'datasets'); 
+folder.Keys    = fullfile(folder.Root, 'results', 'keys');
 
 %% Define output files
 file.Win = fullfile(folder.Keys, 'model_classification.csv');
@@ -71,25 +70,27 @@ params.Model{18} = 16;
 params.Model{19} = 17;
 params.Model{20} = 18; %tally sum
 % Probability priority ttb
-params.Model{21}  = [19,20]; %magnitude: PttbA (zero dif < 18)
-params.Model{22}  = [21,22];            %PttbB (zero dif < 35)
-params.Model{23}  = [23,24];            %PttbC (zero dif < 52)
-params.Model{24}  = [25,26]; %level: PttbA (zero dif < 18)
-params.Model{25}  = [27,28];        %PttbB (zero dif < 35)
-params.Model{26}  = [29,30];        %PttbC (zero dif < 52)
-params.Model{27}  = [31,32]; %tally: PttbA (zero dif < 18)
-params.Model{28}  = [33,34];        %PttbB (zero dif < 35)
-params.Model{29}  = [35,36];        %PttbC (zero dif < 52)
+params.Model{21} = [19,20]; %magnitude: PttbA (zero dif < 18)
+params.Model{22} = [21,22];            %PttbB (zero dif < 35)
+params.Model{23} = [23,24];            %PttbC (zero dif < 52)
+params.Model{24} = [25,26]; %level: PttbA (zero dif < 18)
+params.Model{25} = [27,28];        %PttbB (zero dif < 35)
+params.Model{26} = [29,30];        %PttbC (zero dif < 52)
+params.Model{27} = [31,32]; %tally: PttbA (zero dif < 18)
+params.Model{28} = [33,34];        %PttbB (zero dif < 35)
+params.Model{29} = [35,36];        %PttbC (zero dif < 52)
 % Reward priority ttb
-params.Model{30}  = [37,38]; %magnitude: RttbA (zero dif < 18)
-params.Model{31}  = [39,40];            %RttbB (zero dif < 35)
-params.Model{32}  = [41,42];            %RttbC (zero dif < 52)
-params.Model{33}  = [43,44]; %level: RttbA (zero dif < 18)
-params.Model{34}  = [45,46];        %RttbB (zero dif < 35)
-params.Model{35}  = [47,48];        %RttbC (zero dif < 52)
-params.Model{36}  = [49,50]; %tally: RttbA (zero dif < 18)
-params.Model{37}  = [51,52];        %RttbB (zero dif < 35)
-params.Model{38}  = [53,54];        %RttbC (zero dif < 52)
+params.Model{30} = [37,38]; %magnitude: RttbA (zero dif < 18)
+params.Model{31} = [39,40];            %RttbB (zero dif < 35)
+params.Model{32} = [41,42];            %RttbC (zero dif < 52)
+params.Model{33} = [43,44]; %level: RttbA (zero dif < 18)
+params.Model{34} = [45,46];        %RttbB (zero dif < 35)
+params.Model{35} = [47,48];        %RttbC (zero dif < 52)
+params.Model{36} = [49,50]; %tally: RttbA (zero dif < 18)
+params.Model{37} = [51,52];        %RttbB (zero dif < 35)
+params.Model{38} = [53,54];        %RttbC (zero dif < 52)
+
+params.Model{39} = 55; %powerlaw 
 
 
 %% Get number of models
@@ -100,9 +101,9 @@ bayes.winModel = NaN(params.nSubj, 1);
 betas = [];
 
 for iSubject = 1 : params.nSubj
-    bayes.w{iSubject}          = NaN(params.nModel, 3);
-    bayes.w10{iSubject}        = NaN(params.nModel, 3);
-    bayes.diagV{iSubject}      = NaN(params.nModel, 3);
+    bayes.w{iSubject}     = NaN(params.nModel, 3);
+    bayes.w10{iSubject}   = NaN(params.nModel, 3);
+    bayes.diagV{iSubject} = NaN(params.nModel, 3);
     
     bayes.Base = data.matrix(data.matrix(:, 1) == params.SubjID(iSubject), :);
     bayes.Outcome{iSubject} = bayes.Base(:, params.respLocation);
@@ -118,8 +119,8 @@ for iSubject = 1 : params.nSubj
         bayes.w{iSubject}(iModel, [1 bayes.indCueModel + 1])     = w; % cue weights
         bayes.w10{iSubject}(iModel, [1 bayes.indCueModel + 1])   = log10(exp(w));
         bayes.diagV{iSubject}(iModel, [1 bayes.indCueModel + 1]) = diag(V); % variance of w
-        bayes.E_a(iSubject, iModel)                                    = E_a;
-        bayes.L(iSubject, iModel)                                      = L; % log-likelihood of the data given the model (lower bound); larger L = better fit
+        bayes.E_a(iSubject, iModel)                              = E_a;
+        bayes.L(iSubject, iModel)                                = L; % log-likelihood of the data given the model (lower bound); larger L = better fit
 
         clear w V invV logdetV E_a L w2 V2 invV2 logdetV2 E_a2 L2
 

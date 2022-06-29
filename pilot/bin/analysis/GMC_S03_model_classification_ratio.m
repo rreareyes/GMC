@@ -11,11 +11,10 @@
 clear; clc
 
 %% Base directories
-cd('..')
-folder.Root    = pwd;
-folder.Scripts = fullfile(folder.Root, 'Scripts');
-folder.Results = fullfile(folder.Root, 'Results', 'Datasets'); 
-folder.Keys    = fullfile(folder.Root, 'Results', 'Keys');
+folder.Root    = fileparts(fileparts(cd));
+folder.Scripts = fullfile(folder.Root, 'bin', 'analysis');
+folder.Results = fullfile(folder.Root, 'results', 'datasets'); 
+folder.Keys    = fullfile(folder.Root, 'results', 'keys');
 
 %% Define output files
 file.Win = fullfile(folder.Keys, 'model_classification_ratio.csv');
@@ -113,6 +112,11 @@ params.Model{51} = [79,80]; %Prob and Reward
 params.Model{52} = 79;      %Probability
 params.Model{53} = 80;      %Reward
 
+% Ratio EV
+params.Model{54} = 81;
+
+% Power Law
+params.Model{55} = 114;
 
 %% Get number of models
 params.nModel = size(params.Model, 2); % total number of models
