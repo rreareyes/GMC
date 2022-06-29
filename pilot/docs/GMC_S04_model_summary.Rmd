@@ -1,1 +1,252 @@
-x
+---
+title: "GMC model classification summary"
+output:
+  pdf_document: default
+  html_notebook: default
+---
+
+```{r, setup, include=F, message=F, warning=F}
+library(tidyverse)
+library(colorspace)
+library(janitor)
+library(scales)
+library(papaja)
+library(kableExtra)
+library(mctest)
+library(cowplot)
+
+```
+
+```{r base-directories, echo=F, message=F, warning=F}
+folder_root    <- dirname(dirname(rstudioapi::getActiveDocumentContext()$path))
+folder_results <- file.path(folder_root, "results", "datasets")
+folder_logs    <- file.path(folder_root, "data", "logs")
+folder_fits    <- file.path(folder_root, "results", "fits")
+folder_model   <- file.path(folder_root, "results", "keys")
+
+raw_data <- read.csv(file = file.path(folder_model, "model_classification.csv"))
+raw_data_ratio <- read.csv(file = file.path(folder_model, "model_classification_ratio.csv"))
+
+raw_log <- read.csv(file = file.path(folder_logs, "gmc-log.csv"))
+
+raw_betas <- read.csv(file = file.path(folder_results, "beta_weights.csv"), na.strings = "NaN")
+
+raw_betas_ratio <- read.csv(file = file.path(folder_results, "beta_weights_ratio.csv"), na.strings = "NaN")
+
+raw_exceedance <- read.csv(file = file.path(folder_results, "exceedance_probability.csv"), na.strings = "NaN")
+
+raw_exceedance_ratio <- read.csv(file = file.path(folder_results, "exceedance_probability_ratio.csv"), na.strings = "NaN")
+
+```
+
+```{r recode-data, echo=F, message=F, warning=F}
+model_names <- c(
+  "Pr + Rw",
+  "Pr",
+  "Rw",
+  "EV",
+  "PrRatio + RwRatio",
+  "PrRatio",
+  "RwRatio",
+  "PrTr + RwTr",
+  "PrTr",
+  "RwTr",
+  "PrLv + RwLv",
+  "PrLv",
+  "RwLv",
+  "PrLvTr + RwLvTr",
+  "PrLvTr",
+  "RwLvTr",
+  "PrTl + RwTl",
+  "PrTl",
+  "RwTl",
+  "TallySum",
+  "PrTTB A", "PrTTB B", "PrTTB C",
+  "PrTTBlv A", "PrTTBlv B","PrTTBlv C",
+  "PrTTBtl A", "PrTTBtl B", "PrTTBtl C",
+  "RwTTB A", "RwTTB B", "RwTTB C",
+  "RwTTBlv A", "RwTTBlv B", "RwTTBlv C",
+  "RwTTBtl A", "RwTTBtl B", "RwTTBtl C",
+  "SV")
+
+model_names_ratio <- c(
+  "Pr + Rw",
+  "Pr",
+  "Rw",
+  "EV",
+  "PrRatio + RwRatio",
+  "PrRatio",
+  "RwRatio",
+  "PrTr + RwTr",
+  "PrTr",
+  "RwTr",
+  "PrLv + RwLv",
+  "PrLv",
+  "RwLv",
+  "PrLvTr + RwLvTr",
+  "PrLvTr",
+  "RwLvTr",
+  "PrTl + RwTl",
+  "PrTl",
+  "RwTl",
+  "TallySum",
+  "PrTTB A", "PrTTB B", "PrTTB C", "PrTTB D", "PrTTB E",
+  "PrTTBlv A", "PrTTBlv B", "PrTTBlv C", "PrTTBlv D", "PrTTBlv E",
+  "PrTTBtl A", "PrTTBtl B", "PrTTBtl C", "PrTTBtl D", "PrTTBtl E",
+  "RwTTB A", "RwTTB B", "RwTTB C", "RwTTB D", "RwTTB E",
+  "RwTTBlv A", "RwTTBlv B", "RwTTBlv C", "RwTTBlv D", "RwTTBlv E",
+  "RwTTBtl A", "RwTTBtl B", "RwTTBtl C", "RwTTBtl D", "RwTTBtl E",
+  "PrRatioLvl + RwRatioLvl",
+  "PrRatioLvl",
+  "RwRatioLvl",
+  "Ratio EV",
+  "SV")
+```
+
+```{r summries, echo=F, message=F, warning=F}
+n_models <- length(model_names)
+n_models_ratio <- length(model_names_ratio)
+                 
+model_labels <- paste(sort(as.numeric(factor(model_names))), model_names)
+model_labels_ratio <- paste(sort(as.numeric(factor(model_names_ratio))), model_names_ratio)
+
+model_data <- raw_data %>% 
+  mutate(model_names = factor(model, levels = 1:n_models, labels = model_labels)) %>% 
+  full_join(raw_log) %>%
+  mutate(stage = as.numeric(stage) + 1) %>% 
+  mutate(stage = as.factor(stage)) %>% 
+  select(id, stage, rw_top, model, model_names) %>% 
+  na.omit()
+
+model_data_ratio <- raw_data_ratio %>% 
+  mutate(model_names = factor(model, levels = 1:n_models_ratio, labels = model_labels_ratio)) %>% 
+  full_join(raw_log) %>%
+  mutate(stage = as.numeric(stage) + 1) %>% 
+  mutate(stage = as.factor(stage)) %>% 
+  select(id, stage, rw_top, model, model_names) %>% 
+  na.omit()
+
+model_data_merged <- full_join(model_data, model_data_ratio) %>% 
+  mutate(model_names = str_remove_all(model_names, "[:digit:]")) %>% 
+  select(id, stage, "model_name" = model_names) %>% 
+  group_by(model_name) %>% 
+  mutate(model = cur_group_id()) %>% 
+  ungroup() %>% 
+  mutate(model = str_pad(as.character(model), 2, pad = "0")) %>% 
+  unite("label", c(model, model_name), sep = ")", remove = F)
+
+model_exceedance <- raw_exceedance %>% 
+  pivot_longer(everything(), names_to = "model", values_to = "exceedance") %>% 
+  mutate(model_names = factor(model, levels = 1:n_models, labels = model_labels))
+
+model_table <- model_data_merged %>% 
+  group_by(stage, model_name) %>%
+  summarise(Participants = n()) %>% 
+  rename("Stage" = stage, "Model Name" = model_name) %>% 
+  ungroup()
+  
+reference_betas <- full_join(raw_betas, raw_betas_ratio) %>% 
+  filter(model == 5) %>% 
+  full_join(raw_log) %>%
+  na.omit() %>% 
+  mutate(stage = stage +1,
+         Probability = round(x1, 4),
+         Reward = round(x2, 4)) %>% 
+  select(id, stage, Probability, Reward) %>% 
+  pivot_longer(cols = c(Probability, Reward), names_to = "Predictor", values_to = "Beta") %>% 
+  mutate(Probs = exp(Beta)/(1 + exp(Beta)),
+         "Percent Change" = Probs - 0.5)
+
+```
+
+# Statistical models 
+```{r descriptives, echo=F, message=F, warning=F}
+select(raw_log, id, stage) %>% 
+  unique() %>% 
+  arrange(stage) %>% 
+  mutate(stage = as.numeric(stage) + 1) %>% 
+  mutate(stage = as.factor(stage)) %>% 
+  group_by(stage) %>% 
+  summarise(n = n()) %>% 
+  apa_table(caption = "Number of participants per group", placement = "H", align = c("m{2.2cm}", "m{0.3cm}"))
+
+```
+
+```{r model_summaries, echo=F, message=F, warning=F}
+apa_table(filter(model_table, Stage == 1), placement = "H", 
+          caption = "Stage 1. Loose hashtags, probability shown as a decimal")
+
+apa_table(filter(model_table, Stage == 2), placement = "H",
+          caption = "Stage 2. Tight black hashtags, probability shown as a decimal")
+
+apa_table(filter(model_table, Stage == 3), placement = "H",
+          caption = "Stage 3. Dark two-colored hashtags, probability shown as an integer")
+
+apa_table(filter(model_table, Stage == 4), placement = "H",
+          caption = "Stage 4. Brighter two-colored hashtag, probability shown as an integer")
+
+apa_table(filter(model_table, Stage == 5), placement = "H",
+          caption = "Stage 5. Tight black hashtags, reward shown as a decimal")
+
+apa_table(filter(model_table, Stage == 6), placement = "H",
+          caption = "Stage 6. Ratio conditions. Brighter two-colored hashtag, probability shown as an integer.")
+
+
+```
+
+```{r model-key, echo=F, message=F, warning=F}
+model_key <- model_table %>% 
+  distinct(`Model Name`) %>% 
+  mutate(Description = c("Relative difference in prob and rw",
+                         "Relative difference in prob",
+                         "Tally prob",
+                         "Subjective Value",
+                         "Tally pr and rw",
+                         "Tally sum",
+                         "TTB priority pr difference >14",
+                         "Levels pr and rw",
+                         "Tally rw",
+                         "Relative difference in reward",
+                         "Ratio EV"))
+
+model_key %>% 
+  apa_table(caption   = "Decision models", 
+            placement = "H", 
+            note      = "Difference in prob and rw in original scale used as the reference model")
+
+```
+
+\newpage
+```{r model_counts, echo=F, fig.width=8, fig.height=10}
+
+plot_colors = c('#8dd3c7','#ffffb3','#bebada',
+                '#fb8072','#80b1d3','#fdb462',
+                '#b3de69','#fccde5','#d9d9d9','#bc80bd','#ccebc5')
+
+ggplot(data = model_data_merged) +
+  
+  ggtitle("Best fitting models") +
+  
+  geom_bar(aes(x    = as.factor(model),
+               fill = label),
+           color = "black", position = position_dodge2(preserve = c("single"))) +
+  
+  scale_fill_manual(aesthetics = c("fill"), values = plot_colors,
+                    name       = "Decision model") +
+  
+  scale_x_discrete(name = "") +
+  
+  scale_y_continuous(name   = "Number of participants", 
+                     breaks = seq(0, 100, 2)) +
+  
+  theme_bw() +
+  
+  background_grid(major = "y") +
+  
+  facet_wrap(stage ~ ., ncol = 2, scales = "free_x") +
+  
+  theme(panel.grid.major = element_line(size = 0.5, linetype = "dashed")) 
+
+```
+
+
