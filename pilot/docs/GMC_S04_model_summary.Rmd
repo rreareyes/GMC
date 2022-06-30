@@ -67,6 +67,7 @@ model_names <- c(
   "RwTTB A", "RwTTB B", "RwTTB C",
   "RwTTBlv A", "RwTTBlv B", "RwTTBlv C",
   "RwTTBtl A", "RwTTBtl B", "RwTTBtl C",
+  "Ratio EV",
   "SV")
 
 model_names_ratio <- c(
@@ -197,17 +198,16 @@ apa_table(filter(model_table, Stage == 6), placement = "H",
 ```{r model-key, echo=F, message=F, warning=F}
 model_key <- model_table %>% 
   distinct(`Model Name`) %>% 
-  mutate(Description = c("Relative difference in prob and rw",
-                         "Relative difference in prob",
+  mutate(Description = c("Relative difference in prob",
+                         "Relative difference in prob and rw",
                          "Tally prob",
+                         "Ratio EV",
                          "Subjective Value",
                          "Tally pr and rw",
-                         "Tally sum",
                          "TTB priority pr difference >14",
                          "Levels pr and rw",
                          "Tally rw",
-                         "Relative difference in reward",
-                         "Ratio EV"))
+                         "Relative difference in reward"))
 
 model_key %>% 
   apa_table(caption   = "Decision models", 

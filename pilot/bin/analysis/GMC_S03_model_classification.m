@@ -90,7 +90,8 @@ params.Model{36} = [49,50]; %tally: RttbA (zero dif < 18)
 params.Model{37} = [51,52];        %RttbB (zero dif < 35)
 params.Model{38} = [53,54];        %RttbC (zero dif < 52)
 
-params.Model{39} = 55; %powerlaw 
+params.Model{39} = 55; %ev ratio
+params.Model{40} = 56; %powerlaw 
 
 
 %% Get number of models

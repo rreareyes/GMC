@@ -76,7 +76,8 @@ gamble_data <- bind_rows(raw_subject_data) %>%
   mutate(ev_left    = p_left * r_left,
          ev_right   = p_right * r_right,
          #subjective value
-         sv_dif = (p_left * log(r_left)) - (p_right * log(r_right)),
+         sv_dif     = (p_left * log(r_left)) - (p_right * log(r_right)),
+         ev_rel     = ev_left/ev_right,
          ev_dif     = round(ev_left - ev_right, 2),
          p_dif      = p_dif * 100,
          p_left     = p_left * 100,
@@ -148,6 +149,7 @@ model_input <- gamble_data %>%
          ev_dif, 
          p_rel, r_rel,
          p_dif_tr:p_rttb_tl_C,
+         ev_rel,
          sv_dif)
 
 write_csv(model_input,
