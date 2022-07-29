@@ -1,0 +1,431 @@
+---
+title: "GMC fixations summary"
+author: "Ramiro Reyes"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(colorspace)
+library(janitor)
+library(scales)
+library(papaja)
+library(kableExtra)
+library(cowplot)
+library(lemon)
+
+knitr::opts_chunk$set(echo=F, message=F, warning=F)
+```
+
+```{r base-directories}
+path_root    <- dirname(dirname(dirname(rstudioapi::getActiveDocumentContext()$path)))
+path_results <- file.path(path_root, "results", "datasets")
+path_keys    <- file.path(path_root, "results", "keys")
+
+model_names <- c(
+  "PrDelta + RwDelta",
+  "RwDelta",
+  "PrDelta",
+  "PrRatio + RwRatio",
+  "RwRatio",
+  "PrRatio",
+  "PrRatioLv + RwRatioLv",
+  "RwRatioLv",
+  "PrRatioLv",
+  "EV",
+  "EV Ratio",
+  "SV",
+  "PrDeltaLv + RwDeltaLv",
+  "PrDeltaLv",
+  "RwDeltaLv",
+  "PrDeltaTr + RwDeltaTr",
+  "PrDeltaTr",
+  "RwDeltaTr",
+  "PrTrLv + RwTrLv",
+  "PrTrLv",
+  "RwTrLv",
+  "PrTl + RwTl",
+  "PrTl",
+  "RwTl",
+  "TallySum"
+  )
+
+```
+
+```{r base-data}
+load(file = file.path(path_keys, "conditions.RData"))
+load(file = file.path(path_results,  "labelled_fixations.RData"))
+model_key <- read.csv(file = file.path(path_keys, "model_classification.csv"), 
+                      colClasses = c("numeric", "numeric")) %>% 
+  mutate(model_name = factor(model, 
+                        levels = 1:length(model_names), 
+                        labels = model_names))
+
+fixation_data <- left_join(labelled_fixations, model_key, by = c("id")) %>% 
+  left_join(condition_key) %>% 
+  filter(x < 1920 & x > 1 & y > 1 & y < 1080)
+
+```
+
+```{r, aoi-settings}
+aoi_size   <- 140 # size of the AOI
+aoi_offset <- aoi_size/2 # distance from the center to AOI's edge
+
+x_offsets <- c(-1, 1, 1, -1) * aoi_offset #vertex offset from center aoi
+y_offsets <- c(-1, -1, 1, 1) * -aoi_offset
+
+screen_res <- c(1920, 1080)
+smi_center <- screen_res/2
+
+top_left_center  <- c(-86.82, (-1 * 442.64)) + smi_center 
+top_right_center <- c(86.82, (-1 * 442.64)) + smi_center
+
+bot_left_center  <- c(-86.82, (-1 * 268.53)) + smi_center
+bot_right_center <- c(86.82, (-1 * 268.53)) + smi_center
+ 
+top_left_x <- x_offsets + top_left_center[1] # x coords from box vertices
+top_left_y <- y_offsets + top_left_center[2] # y coords from box vertices
+
+top_right_x <- x_offsets + top_right_center[1]
+top_right_y <- y_offsets + top_right_center[2]
+
+bot_left_x <- x_offsets + bot_left_center[1]
+bot_left_y <- y_offsets + bot_left_center[2]
+
+bot_right_x <- x_offsets + bot_right_center[1]
+bot_right_y <- y_offsets + bot_right_center[2]
+
+# AOI boxes
+aois <- tibble(position = c(1, 2, 3, 4),
+               status = factor(c("r_winner", "r_loser", "p_winner", "p_loser"), 
+                               levels = c("r_winner", "r_loser", "p_winner", "p_loser")),
+               label = factor(c("Rw W", "Rw L", "Pr W", "Pr L"), 
+                              levels = c("Rw W", "Rw L", "Pr W", "Pr L")),
+               xlabel = c(min(top_left_x), max(top_right_x), min(bot_left_x), max(bot_right_x)),
+               ylabel = c(min(top_left_y), min(top_right_y), max(bot_left_y), max(bot_right_y)),
+               xmin = c(min(top_left_x), min(top_right_x), min(bot_left_x), min(bot_right_x)),
+               xmax = c(max(top_left_x), max(top_right_x), max(bot_left_x), max(bot_right_x)),
+               ymin = c(min(top_left_y), min(top_right_y), min(bot_left_y), min(bot_right_y)),
+               ymax = c(max(top_left_y), max(top_right_y), max(bot_left_y), max(bot_right_y))
+               )
+
+```
+
+```{r}
+aoi_data <- fixation_data %>% 
+  filter(!is.na(position)) %>% 
+  group_by(id, block, trial) %>% 
+  mutate(fixation = 1:n()) %>% 
+  ungroup() %>% 
+  arrange(id, block, trial) %>% 
+  mutate(
+    fix_info = ifelse(
+      (p_top == 1 & position %in% c(1, 2)) | 
+      (p_top == 0 & position %in% c(3, 4)),
+      "p", "r"),
+    status = ifelse(fix_info == "p" & win_p == T, "p_winner",
+                    ifelse(fix_info == "p" & win_p == F, "p_loser",
+                           ifelse(fix_info == "r" & win_r == T, "r_winner",
+                                  ifelse(fix_info == "r" & win_r == F, "r_loser", NA)))),
+    status = factor(status, levels = c("r_winner", "r_loser", "p_winner", "p_loser")),
+    
+    x_dev = ifelse(position == 1 | position == 3, x - top_left_center[1], 
+                   ifelse(position == 2 | position ==  4, x - top_right_center[1], NA)),
+    
+    y_dev = ifelse(position == 1 | position == 2, y - top_left_center[2], 
+                   ifelse(position == 3 | position ==  4, y - bot_left_center[2], NA)),
+    
+    x_mag = ifelse(status == "r_winner" | status == "p_winner", x_dev + top_left_center[1], 
+                      ifelse(status == "r_loser" | status ==  "p_loser", x_dev + top_right_center[1], NA)),
+    
+    y_mag = ifelse(status == "r_winner" | status == "r_loser", y_dev + top_left_center[2], 
+                      ifelse(status == "p_winner" | status ==  "p_loser", y_dev + bot_left_center[2], NA)),
+    
+    y_flip = ifelse(p_top == 1 & (position  == 3 | position == 4), y_dev + top_left_center[2],
+                    ifelse(p_top == 1 & (position  == 1 | position == 2), y_dev + bot_left_center[2],
+                           ifelse(p_top == 0 & (position  == 1 | position == 2), y_dev + top_left_center[2],
+                                  ifelse(p_top == 0 & (position  == 3 | position == 4), y_dev + bot_left_center[2], NA))))
+    )
+
+```
+
+```{r overall-patterns}
+ggplot() +
+  
+  ggtitle("Overall fixation patterns",
+          "Colored areas represent the 140px AOIs") +
+  
+  geom_point(data = fixation_data,
+             aes(x = x,
+                 y = y),
+             alpha = 0.02,
+             color = "black") +
+  
+  geom_rect(data = aois, 
+            aes(xmin = xmin, 
+                ymin = ymin,
+                xmax = xmax, 
+                ymax = ymax,
+                color = as.factor(position),
+                fill = as.factor(position)),
+            alpha = 0.3) +
+  
+  scale_color_brewer(palette = "Dark2", aesthetics = c("color", "fill")) +
+  
+  guides(color = F, fill = F) +
+  
+  scale_y_reverse(breaks = seq(0,1080,216)) +
+  
+  scale_x_continuous(breaks = seq(0,1920,192)) +
+  
+  theme_bw()
+
+
+```
+
+\newpage
+```{r, fig.width=6, fig.height=6}
+ggplot() +
+  
+  ggtitle("AOI fixations",
+          "Colored areas represent the 140px AOIs") +
+  
+  geom_point(data = aoi_data,
+             aes(x = x,
+                 y = y,
+                 color = as.factor(position)),
+             alpha = 0.1) +
+  
+  geom_rect(data = aois, 
+            aes(xmin = xmin - 2, 
+                ymin = ymin - 2,
+                xmax = xmax + 2, 
+                ymax = ymax + 2,
+                color = as.factor(position)),
+            fill = NA,
+            size = 1,
+            alpha = 0.3) +
+  
+  scale_color_brewer(palette = "Dark2", aesthetics = c("color", "fill")) +
+  
+  guides(color = F, fill = F) +
+  
+  scale_y_reverse(breaks = seq(0,1080,50)) +
+  
+  scale_x_continuous(breaks = seq(0,1920,50)) +
+  
+  theme_bw()
+```
+
+\newpage
+```{r, fig.width=8, fig.height=6}
+ggplot() +
+  
+  ggtitle("Fixations towards gamble information",
+          "Remapped to show winning gamble in the left side") +
+  
+  geom_point(data = aoi_data,
+             aes(x = x_mag,
+                 y = y_mag,
+                 color = status),
+             alpha = 0.1) +
+  
+  geom_rect(data = aois, 
+            aes(xmin = xmin - 2, 
+                ymin = ymin - 2,
+                xmax = xmax + 2, 
+                ymax = ymax + 2,
+                color = status),
+            size = 1,
+            fill = NA,
+            alpha = 0.3) +
+  
+  scale_color_brewer(palette = "Dark2", aesthetics = c("color", "fill"), 
+                     name = "Information",
+                     labels = c("Reward winner", "Reward loser", "Prob winner", "Prob loser")) +
+  
+  scale_y_reverse(breaks = seq(0,1080,50)) +
+  
+  scale_x_continuous(breaks = seq(0,1920,50)) +
+  
+  theme_bw()
+```
+
+\newpage
+```{r}
+ggplot() +
+  
+  ggtitle("Fixations towards gamble information",
+          "Remapped to show reward on top") +
+  
+  geom_point(data = aoi_data,
+             aes(x = x,
+                 y = y_flip,
+                 group = status),
+             alpha = 0.1) +
+  
+  geom_rect(data = aois, 
+            aes(xmin = xmin - 2, 
+                ymin = ymin - 2,
+                xmax = xmax + 2, 
+                ymax = ymax + 2,
+                color = status),
+            size = 1,
+            fill = NA,
+            alpha = 0.3) +
+  
+  scale_color_brewer(palette = "Dark2", aesthetics = c("color", "fill"), 
+                     name = "Information",
+                     labels = c("Reward", "Reward", "Prob", "Prob")) +
+  
+  scale_y_reverse(breaks = seq(0,1080,50)) +
+  
+  scale_x_continuous(breaks = seq(0,1920,50)) +
+  
+  theme_bw()
+```
+
+
+\newpage
+```{r, fig.width=8, fig.height=6}
+ggplot() +
+  
+  ggtitle("Fixation density towards gamble information") +
+  
+  stat_density_2d(data = aoi_data,
+                  aes(x    = x_mag,
+                      y    = y_mag,
+                      fill = after_stat(level)), 
+                  geom        = "polygon", 
+                  contour_var = "ndensity",
+                  alpha = 1) +
+  
+  geom_rect(data = aois, 
+            aes(xmin = xmin - 10, 
+                ymin = ymin - 10,
+                xmax = xmax + 10, 
+                ymax = ymax + 10,
+                color = status),
+            fill = NA,
+            color = "black",
+            alpha = 0.3) +
+  
+  # Info labels
+  geom_label(data = aois,
+             aes(x     = xlabel,
+                 y     = ylabel,
+                 label = label),
+             fill     = "#690202",
+             color    = "white", 
+             label.r  = unit(0, "lines"), 
+             hjust    = "middle", 
+             fontface = "bold",
+             size     = 3,
+             alpha    = 0.8) +
+  
+  scale_fill_viridis_c(name = "Density",
+                       option = "viridis", limits = c(0,1)) +
+  
+  guides(color = F) +
+  
+  scale_color_brewer(palette = "Dark2", aesthetics = c("color")) +
+  
+  scale_y_reverse(breaks = seq(0,1080,50)) +
+  
+  scale_x_continuous(breaks = seq(0,1920,50)) +
+  
+  theme_bw()
+```
+
+
+
+\newpage
+```{r, fig.width=8, fig.height=10}
+ggplot(data = aoi_data) +
+  
+  ggtitle("Fixation allocation towards gamble information",
+          "Each panel represents a different strategy") +
+  
+geom_point(data = aoi_data,
+             aes(x = x_mag,
+                 y = y_mag,
+                 color = status),
+             alpha = 0.1) +
+  
+  geom_rect(data = aois, 
+            aes(xmin = xmin - 2, 
+                ymin = ymin - 2,
+                xmax = xmax + 2, 
+                ymax = ymax + 2,
+                color = status),
+            size = 1,
+            fill = NA,
+            alpha = 0.3) +
+  
+  scale_color_brewer(palette = "Dark2", aesthetics = c("color", "fill"), 
+                     name = "Information",
+                     labels = c("Reward winner", "Reward loser", "Prob winner", "Prob loser")) +
+  
+  scale_y_reverse(breaks = seq(0,1080,50)) +
+  
+  scale_x_continuous(breaks = seq(0,1920,50)) +
+  
+  facet_wrap(. ~ model_name, ncol = 2) +
+  
+  theme_bw()
+```
+
+\newpage
+```{r, fig.width=4, fig.height=6}
+ggplot(data = aoi_data) +
+  
+  ggtitle("Fixation density towards gamble information",
+          "Each panel represents a different strategy") +
+  
+  stat_density_2d(aes(x    = x_mag,
+                      y    = y_mag,
+                      fill = after_stat(level)), 
+                  geom        = "polygon", 
+                  contour_var = "ndensity",
+                  alpha = 1) +
+  
+  geom_rect(data = aois, 
+            aes(xmin = xmin - 10, 
+                ymin = ymin - 10,
+                xmax = xmax + 10, 
+                ymax = ymax + 10,
+                color = status),
+            fill = NA,
+            color = "black",
+            alpha = 0.3) +
+  
+  # Info labels
+  geom_label(data = aois,
+             aes(x     = xlabel,
+                 y     = ylabel,
+                 label = label),
+             fill     = "#690202",
+             color    = "white", 
+             label.r  = unit(0, "lines"), 
+             hjust    = "middle", 
+             fontface = "bold",
+             size     = 3,
+             alpha    = 0.8) +
+  
+  scale_fill_viridis_c(name = "Density",
+                       option = "viridis", limits = c(0,1)) +
+  
+  guides(color = F) +
+
+    scale_color_brewer(palette = "Dark2", aesthetics = c("color")) +
+  
+  scale_y_reverse(breaks = seq(0,1080,50)) +
+  
+  scale_x_continuous(breaks = seq(0,1920,50)) +
+  
+  facet_wrap(. ~ model_name, ncol = 2) +
+  
+  theme_bw()
+```
+

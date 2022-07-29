@@ -1,0 +1,144 @@
+---
+title: "GMC Modeling summary"
+author: "Ramiro Reyes"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(colorspace)
+library(janitor)
+library(scales)
+library(papaja)
+library(kableExtra)
+library(cowplot)
+
+knitr::opts_chunk$set(echo=F, message=F, warning=F)
+```
+
+```{r base-directories}
+path_root    <- dirname(dirname(dirname(rstudioapi::getActiveDocumentContext()$path)))
+path_results <- file.path(path_root, "results", "datasets")
+path_model   <- file.path(path_root, "results", "keys")
+
+```
+
+```{r base-data}
+raw_data <- read.csv(file = file.path(path_model,  "model_classification.csv"))
+
+raw_betas <- read.csv(file = file.path(path_results, "beta_weights.csv"), na.strings = "NaN")
+```
+
+```{r, model-labels}
+model_names <- c(
+  "PrDelta + RwDelta",
+  "RwDelta",
+  "PrDelta",
+  "PrRatio + RwRatio",
+  "RwRatio",
+  "PrRatio",
+  "PrRatioLv + RwRatioLv",
+  "RwRatioLv",
+  "PrRatioLv",
+  "EV",
+  "EV Ratio",
+  "SV",
+  "PrDeltaLv + RwDeltaLv",
+  "PrDeltaLv",
+  "RwDeltaLv",
+  "PrDeltaTr + RwDeltaTr",
+  "PrDeltaTr",
+  "RwDeltaTr",
+  "PrTrLv + RwTrLv",
+  "PrTrLv",
+  "RwTrLv",
+  "PrTl + RwTl",
+  "PrTl",
+  "RwTl",
+  "TallySum"
+  )
+
+```
+
+
+```{r model-summaries}
+n_models <- length(model_names)
+
+model_labels <- paste(sort(as.numeric(factor(model_names))), model_names)
+
+model_data <- raw_data %>% 
+  mutate(model_names = factor(model, 
+                              levels = 1:n_models, labels = model_names)) %>% 
+  na.omit() %>% 
+  arrange(model) %>% 
+  mutate(model = str_pad(as.character(model), 2, pad = "0")) %>% 
+  unite("label", c(model, model_names), sep = ")", remove = F)
+
+model_count <- model_data %>% 
+  group_by(model_names) %>% 
+  summarise("Participants" = n()) %>% 
+  ungroup() %>% 
+  rename("Model Name" = model_names)
+
+
+
+```
+
+```{r participant-count}
+select(model_data, id) %>% 
+  unique() %>% 
+  summarise(n = n()) %>% 
+  apa_table(caption = "Number of participants", placement = "H", align = c("m{2.2cm}", "m{0.3cm}"))
+```
+
+```{r model-key}
+model_key <- model_count %>% 
+  mutate(Description = c("Probability and Reward Ratio",
+                         "Probability Ratio",
+                         "Reward Ratio",
+                         "EV Ratio",
+                         "Subjective Value",
+                         "Probability and Reward Tally",
+                         "Reward Tally"
+                         ))
+
+model_key %>% 
+  apa_table(caption   = "Decision models", 
+            placement = "H", 
+            align = c("m{4cm}", "m{0.3cm}", "m{6cm}"),
+            note      = "Difference in prob and rw in original scale used as the reference model")
+
+```
+
+\newpage
+
+```{r model_counts}
+
+plot_colors = c('#8dd3c7','#ffffb3','#bebada',
+                '#fb8072','#80b1d3','#fdb462',
+                '#b3de69','#fccde5','#d9d9d9','#bc80bd','#ccebc5')
+
+ggplot(data = model_data) +
+  
+  ggtitle("Best fitting models") +
+  
+  geom_bar(aes(x    = as.factor(model),
+               fill = as.factor(label)),
+           color = "black", position = position_dodge2(preserve = c("single"))) +
+  
+  scale_fill_manual(aesthetics = c("fill"), values = plot_colors,
+                    name       = "Decision model") +
+  
+  scale_x_discrete(name = "") +
+  
+  scale_y_continuous(name   = "Number of participants", 
+                     breaks = seq(0, 100, 2)) +
+  
+  theme_bw() +
+  
+  background_grid(major = "y") +
+  
+  theme(panel.grid.major = element_line(size = 0.5, linetype = "dashed")) 
+
+```

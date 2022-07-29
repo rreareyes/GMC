@@ -1,0 +1,352 @@
+---
+title: "GMC RT summary"
+author: "Ramiro Reyes"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(colorspace)
+library(janitor)
+library(scales)
+library(papaja)
+library(kableExtra)
+library(cowplot)
+library(lemon)
+
+knitr::opts_chunk$set(echo=F, message=F, warning=F)
+```
+
+```{r base-directories}
+path_root    <- dirname(dirname(dirname(rstudioapi::getActiveDocumentContext()$path)))
+path_results <- file.path(path_root, "results", "datasets")
+
+```
+
+```{r base-data}
+load(file = file.path(path_results,  "preproc_choices.RData"))
+
+```
+
+```{r}
+rt_data <- preproc_choices %>% 
+  mutate(rt = (end_time - start_time) * 1000,
+         delta_p_level = (delta_p/13),
+         delta_r_level = (delta_r/13),
+         delta_p_label = letters[delta_p_level + 6],
+         delta_r_label = letters[delta_r_level + 6],
+         delta_cond_label = paste("p ", delta_p_label, "_r ", delta_r_label, sep = "")) %>% 
+  mutate(delta_cond_label = factor(delta_cond_label)) %>% 
+  group_by(delta_cond_label) %>% 
+  mutate(delta_cond_level = cur_group_id())
+```
+
+```{r}
+participant_rt <- rt_data %>% 
+  group_by(id, block) %>% 
+  summarise("Mean RT" = mean(rt),
+            "Median RT" = median(rt),
+            "Min RT" = min(rt),
+            "Max RT" = max(rt)) %>% 
+  ungroup()
+
+#apa_table(participant_rt, caption = "RT summaries", note = "Time in ms")
+```
+
+```{r delta-summaries}
+delta_p_rt <- rt_data %>% 
+  group_by(id, delta_p_level) %>% 
+  summarise("Mean RT" = mean(rt),
+            "Median RT" = median(rt),
+            "Min RT" = min(rt),
+            "Max RT" = max(rt))
+
+delta_r_rt <- rt_data %>% 
+  group_by(id, delta_r_level) %>% 
+  summarise("Mean RT" = mean(rt),
+            "Median RT" = median(rt),
+            "Min RT" = min(rt),
+            "Max RT" = max(rt))
+
+delta_rt <- rt_data %>% 
+  group_by(id, delta_p_level, delta_r_level) %>% 
+  summarise("Mean RT" = mean(rt),
+            "Median RT" = median(rt),
+            "Min RT" = min(rt),
+            "Max RT" = max(rt))
+
+
+
+```
+
+```{r ratio-summaries}
+ratio_p_rt <- rt_data %>% 
+  group_by(id, ratio_p_lvl) %>% 
+  summarise("Mean RT" = mean(rt),
+            "Median RT" = median(rt),
+            "Min RT" = min(rt),
+            "Max RT" = max(rt))
+
+ratio_r_rt <- rt_data %>% 
+  group_by(id, ratio_r_lvl) %>% 
+  summarise("Mean RT" = mean(rt),
+            "Median RT" = median(rt),
+            "Min RT" = min(rt),
+            "Max RT" = max(rt))
+
+ratio_rt <- rt_data %>% 
+  group_by(id, ratio_p_lvl, ratio_r_lvl) %>% 
+  summarise("Mean RT" = mean(rt),
+            "Median RT" = median(rt),
+            "Min RT" = min(rt),
+            "Max RT" = max(rt))
+
+
+
+```
+
+\newpage
+```{r pr-delta-plot}
+ggplot(delta_p_rt,
+       aes(x = as.factor(delta_p_level),
+                 y = `Median RT`)) +
+  
+  ggtitle(expression("Median RT across" ~ Delta*"Probability Levels"), 
+          subtitle = "Red diamonds represent group means")+
+  
+  geom_point(position = position_dodge2(0.3),
+             color = "black", 
+             alpha = 0.2) +
+  
+  stat_summary(geom = "point", 
+               fun = "mean", 
+               col = "black",
+               fill = "red3",
+               shape = 23,
+               size = 3) +
+  
+  scale_y_continuous(breaks = seq(0, 20000, 500)) +
+  
+  scale_x_discrete(name = expression(Delta*"Probability Levels")) +
+  
+  theme_bw() +
+  
+  background_grid(major = "y") +
+  
+  theme(panel.grid.major = element_line(size = 0.5, linetype = "dashed")) 
+```
+\newpage
+```{r rw-delta-plot}
+ggplot(delta_r_rt,
+       aes(x = as.factor(delta_r_level),
+                 y = `Median RT`)) +
+  
+  ggtitle(expression("Median RT across" ~ Delta*"Reward Levels"), 
+          subtitle = "Red diamonds represent group means")+
+  
+  geom_point(position = position_dodge2(0.3),
+             color = "black", 
+             alpha = 0.2) +
+  
+  stat_summary(geom = "point", 
+               fun = "mean", 
+               col = "black",
+               fill = "red2",
+               shape = 23,
+               size = 3) +
+  
+  scale_y_continuous(breaks = seq(0, 20000, 500)) +
+  
+  scale_x_discrete(name = expression(Delta*"Reward Levels")) +
+  
+  theme_bw() +
+  
+  background_grid(major = "y") +
+  
+  theme(panel.grid.major = element_line(size = 0.5, linetype = "dashed")) 
+
+```
+\newpage
+```{r interaction-rwpr-delta-plots, fig.height=10, fig.width=6}
+
+ggplot(delta_rt,
+       aes(x = as.factor(delta_r_level),
+                 y = `Median RT`)) +
+  
+  ggtitle(expression("Median RT across" ~ Delta*"Reward Levels at different Probability level"), 
+          subtitle = "Red diamonds represent group means")+
+  
+  stat_summary(geom = "point", 
+               fun = "mean", 
+               col = "black",
+               fill = "red2",
+               shape = 23,
+               size = 3) +
+  
+  scale_x_discrete(name = expression(Delta*"Reward Levels")) +
+  
+  theme_bw() +
+  
+  facet_rep_wrap(.~factor(delta_p_level, levels = c(-5, 5, -4, 4, -3, 3, -2, 2, -1, 1)),
+                 nrow = 5, 
+                 repeat.tick.labels = T) +
+  
+  background_grid(major = "y") +
+  
+  theme(panel.grid.major = element_line(size = 0.5, linetype = "dashed")) 
+
+```
+
+\newpage
+```{r interaction-prrw-delta-plots, fig.height=10, fig.width=6}
+
+ggplot(delta_rt,
+       aes(x = as.factor(delta_p_level),
+                 y = `Median RT`)) +
+  
+  ggtitle(expression("Median RT across" ~ Delta*"Probability Levels at different Reward level"), 
+          subtitle = "Red diamonds represent group means")+
+  
+  stat_summary(geom = "point", 
+               fun = "mean", 
+               col = "black",
+               fill = "red2",
+               shape = 23,
+               size = 2) +
+  
+  scale_x_discrete(name = expression(Delta*"Probability Level")) +
+  
+  theme_bw() +
+  
+  facet_rep_wrap(.~factor(delta_r_level, levels = c(-5, 5, -4, 4, -3, 3, -2, 2, -1, 1)),
+                 nrow = 5,
+                 repeat.tick.labels = TRUE) +
+  
+  background_grid(major = "y") +
+  
+  theme(panel.grid.major = element_line(size = 0.5, linetype = "dashed")) 
+
+```
+\newpage
+```{r pr-ratio-plot}
+ggplot(ratio_p_rt,
+       aes(x = as.factor(ratio_p_lvl),
+                 y = `Median RT`)) +
+  
+  ggtitle(expression("Median RT across" ~ Phi*"Probability Levels"), 
+          subtitle = "Green diamonds represent group means")+
+  
+  geom_point(position = position_dodge2(0.3),
+             color = "black", 
+             alpha = 0.2) +
+  
+  stat_summary(geom = "point", 
+               fun = "mean", 
+               col = "black",
+               fill = "green3",
+               shape = 23,
+               size = 3) +
+  
+  scale_y_continuous(breaks = seq(0, 20000, 500)) +
+  
+  scale_x_discrete(name = expression(Phi*"Probability Levels")) +
+  
+  theme_bw() +
+  
+  background_grid(major = "y") +
+  
+  theme(panel.grid.major = element_line(size = 0.5, linetype = "dashed")) 
+```
+\newpage
+```{r rw-ratio-plot}
+ggplot(ratio_r_rt,
+       aes(x = as.factor(ratio_r_lvl),
+                 y = `Median RT`)) +
+  
+  ggtitle(expression("Median RT across" ~ Phi*"Reward Levels"), 
+          subtitle = "Green diamonds represent group means")+
+  
+  geom_point(position = position_dodge2(0.3),
+             color = "black", 
+             alpha = 0.2) +
+  
+  stat_summary(geom = "point", 
+               fun = "mean", 
+               col = "black",
+               fill = "green3",
+               shape = 23,
+               size = 3) +
+  
+  scale_y_continuous(breaks = seq(0, 20000, 500)) +
+  
+  scale_x_discrete(name = expression(Phi*"Reward Levels")) +
+  
+  theme_bw() +
+  
+  background_grid(major = "y") +
+  
+  theme(panel.grid.major = element_line(size = 0.5, linetype = "dashed")) 
+
+```
+\newpage
+```{r interaction-rwpr-ratio-plots, fig.height=8, fig.width=8}
+
+ggplot(ratio_rt,
+       aes(x = as.factor(ratio_r_lvl),
+                 y = `Median RT`)) +
+  
+  ggtitle(expression("Median RT across" ~ Phi*"Reward Levels at different Probability level"), 
+          subtitle = "Green diamonds represent group means")+
+  
+  stat_summary(geom = "point", 
+               fun = "mean", 
+               col = "black",
+               fill = "green3",
+               shape = 23,
+               size = 3) +
+  
+  scale_x_discrete(name = expression(Phi*"Reward Levels")) +
+  
+  theme_bw() +
+  
+  facet_rep_wrap(.~ratio_p_lvl,
+                 nrow = 3, 
+                 repeat.tick.labels = T) +
+  
+  background_grid(major = "y") +
+  
+  theme(panel.grid.major = element_line(size = 0.5, linetype = "dashed")) 
+
+```
+
+\newpage
+```{r interaction-prrw-ratio-plots, fig.height=8, fig.width=8}
+
+ggplot(ratio_rt,
+       aes(x = as.factor(ratio_p_lvl),
+                 y = `Median RT`)) +
+  
+  ggtitle(expression("Median RT across" ~ Phi*"Probability Levels at different Reward level"), 
+          subtitle = "Green diamonds represent group means")+
+  
+  stat_summary(geom = "point", 
+               fun = "mean", 
+               col = "black",
+               fill = "green3",
+               shape = 23,
+               size = 3) +
+  
+  scale_x_discrete(name = expression(Phi*"Probability Levels")) +
+  
+  theme_bw() +
+  
+  facet_rep_wrap(.~ratio_r_lvl,
+                 nrow = 3, 
+                 repeat.tick.labels = T) +
+  
+  background_grid(major = "y") +
+  
+  theme(panel.grid.major = element_line(size = 0.5, linetype = "dashed")) 
+
+```
