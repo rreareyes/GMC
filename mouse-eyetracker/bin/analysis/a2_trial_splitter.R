@@ -1,5 +1,13 @@
 # Trial splitter
 
+# First make sure you converted the data from .idf files using the IDFConverter
+
+# For the samples set Channel to "Binocular/Either eye" and mark under POR: 
+#   Gaze Position 
+#   Quality Values
+
+# For the messages leave POR blank and mark under Channel "Binocular/Either eye"
+
 # This script splits each block of data into single trial files. We do this 
 # since the I2MC algorithm for fixation detection requires each trial to be
 # its own file to work appropriately.
@@ -28,6 +36,7 @@ require(tidyverse)
 
 folder_root <- dirname(dirname(dirname(rstudioapi::getActiveDocumentContext()$path)))
 folder_data <- file.path(folder_root, "data", "tracker")
+folder_time <- file.path(folder_root, "data", "timing")
 
 folder_samples  <- file.path(folder_data, "samples")
 folder_messages <- file.path(folder_data, "messages")
@@ -51,6 +60,8 @@ list_subjects <- unique(name_list$id)
 n_blocks   <- length(list_blocks)
 n_subjects <- length(list_subjects)
 
+subject_timing <- list()
+
 # Extract data from subjects ----------------------------------------------
 for (iSubject in 1:n_subjects) {
   
@@ -65,14 +76,14 @@ for (iSubject in 1:n_subjects) {
     dir.create(folder_subject, showWarnings = FALSE)
     
     subject_samples <- list.files(folder_samples, 
-                                  pattern = subject_id)
+                                  pattern = paste("tracker-",subject_id, sep=""))
     
     subject_messages <- list.files(folder_messages, 
-                                   pattern = subject_id)
+                                   pattern = paste("tracker-",subject_id, sep=""))
     
     n_files <- length(subject_samples)
     
-    
+    block_timing <- list()
     # Loop through the files from each subject
     for (iFile in 1:n_files) {
       
@@ -94,9 +105,9 @@ for (iSubject in 1:n_subjects) {
       
       # Define the periods with no data (0's in coordinates detected)
       # as NAN, so the I2MC algorithm skips them when detecting fixations
-      tracking_data$x_left[tracking_data$x_left == "0.0000"] <- "NaN"
+      tracking_data$x_left[tracking_data$x_left == "0.0000"]   <- "NaN"
       tracking_data$x_right[tracking_data$x_right == "0.0000"] <- "NaN"
-      tracking_data$y_left[tracking_data$y_left == "0.0000"] <- "NaN"
+      tracking_data$y_left[tracking_data$y_left == "0.0000"]   <- "NaN"
       tracking_data$y_right[tracking_data$y_right == "0.0000"] <- "NaN"
       
       # Load the flags and messages from the tracker
@@ -109,6 +120,7 @@ for (iSubject in 1:n_subjects) {
         select("time" = 1, "message" = 4) %>% 
         filter(str_detect(message, "trial")) %>%
         mutate(message = str_replace(message, "trial", "trial_")) %>% #workaround error in the flags
+        slice(-1) %>%                                                 #sent duplicated message at block start, remove first
         mutate(message = str_replace(message, "_pl", "_pl_")) %>%
         mutate(message = str_replace(message, "_pr", "_pr_")) %>%
         mutate(message = str_replace(message, "_rl", "_rl_")) %>%
@@ -128,6 +140,15 @@ for (iSubject in 1:n_subjects) {
                     names_from = trigger, 
                     values_from = time) %>% 
         mutate(trial = as.numeric(trial) + 1)
+      
+      # Save the timing data from this block
+      time_data <- message_data %>% 
+        mutate("id" = as.numeric(subject_id),
+               "t_start" = start/1000,
+               "t_end" = end/1000) |> 
+        select(id, trial, t_start, t_end)
+      
+      block_timing[[iFile]] <- time_data
       
       # Define the number of trials detected in this block
       n_trials <- dim(message_data)[1]
@@ -171,6 +192,13 @@ for (iSubject in 1:n_subjects) {
       
       } #End of file loop
     
+    subject_timing[[iSubject]] <- bind_rows(block_timing)
+    
     } #End of check to skip processed folders
   
   } #End of subject loop
+
+tracker_timing <- bind_rows(subject_timing)
+
+save(tracker_timing, 
+     file = file.path(folder_time, "tracker_timing.RData"))

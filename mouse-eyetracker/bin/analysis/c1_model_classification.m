@@ -56,31 +56,28 @@ opts.MaxIter = 100; % default value for glmfit is 100.
 
 %% MODEL COMPARISON USING VARIATIONAL BAYES
 %% Model construction
-params.Model{1}  = [8, 9]; % reference: delta, actual numbers
-params.Model{2}  = 8;
-params.Model{3}  = 9;
-params.Model{4}  = [10, 11]; %ratio
-params.Model{5}  = 10; 
-params.Model{6}  = 11;
-params.Model{7}  = [12, 13]; %ratio levels
-params.Model{8}  = 12;
-params.Model{9}  = 13;
-params.Model{10} = 16; %expected value
-params.Model{11} = 17; %expected value ratio
-params.Model{12} = 18; %subjective value (power) delta
-params.Model{13} = [19, 20]; %delta levels
-params.Model{14} = 19;
-params.Model{15} = 20;
-params.Model{16} = [21, 22]; %delta truncated 
-params.Model{17} = 21; 
-params.Model{18} = 22; 
-params.Model{19} = [23, 24]; %delta truncated levels
-params.Model{20} = 23;
-params.Model{21} = 24; 
-params.Model{22} = [25, 26]; %tallying
-params.Model{23} = 25;
-params.Model{24} = 26;
-params.Model{25} = 27; %tallying sum
+params.Model{1}  = [4, 5]; % reference: delta, actual numbers
+params.Model{2}  = 4;
+params.Model{3}  = 5;
+params.Model{4}  = [6, 7]; %ratio
+params.Model{5}  = 6; 
+params.Model{6}  = 7;
+params.Model{7}  = [8, 9]; %delta levels
+params.Model{8}  = 8;
+params.Model{9}  = 9;
+params.Model{10} = [10, 11]; %ratio levels
+params.Model{11} = 10;
+params.Model{12} = 11;
+params.Model{13} = [12, 13]; %truncated delta levels
+params.Model{14} = 12;
+params.Model{15} = 13;
+params.Model{16} = [14, 15]; %tallying r and p
+params.Model{17} = 14;
+params.Model{18} = 15;
+params.Model{19} = 16; %tallying sum
+params.Model{20} = 17; % delta expected value
+params.Model{21} = 18; % ratio expected value
+params.Model{22} = 19; % delta subjective value power function
 
 %% Get number of models
 params.nModel = size(params.Model, 2); % total number of models
